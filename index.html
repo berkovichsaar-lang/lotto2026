@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>הגרלת צירופי לוטו</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#E9EEF3; --ink:#1B2A41; --muted:#5C6B7E; --line:#C9D3DE;
+    --ball:#FFFFFF; --red:#C8102E; --gold:#E4A400; --card:#F6F8FA;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 16px 60px}
+  h1{font-size:28px;font-weight:900;margin:0 0 4px;letter-spacing:-.5px}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:15px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .row{display:flex;gap:10px;align-items:center}
+  input[type=number]{flex:1;font:inherit;font-size:22px;font-weight:700;padding:10px 14px;border:2px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);text-align:center}
+  input:focus{outline:3px solid rgba(200,16,46,.25);border-color:var(--red)}
+  .quick{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .quick button{flex:1;min-width:56px}
+  button{font:inherit;font-weight:700;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink);padding:10px 14px;font-size:15px}
+  button:focus-visible{outline:3px solid rgba(27,42,65,.35);outline-offset:2px}
+  .draw{width:100%;margin-top:14px;background:var(--red);color:#fff;border:none;font-size:19px;padding:14px;font-weight:900}
+  .draw:active{transform:scale(.99)}
+  .stats{display:flex;justify-content:space-between;margin:18px 4px 8px;font-size:14px;color:var(--muted)}
+  .stats b{color:var(--ink);font-size:16px}
+  .bar{height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin:0 4px 22px}
+  .bar i{display:block;height:100%;background:var(--red);width:0%;transition:width .4s}
+  h2{font-size:17px;font-weight:700;margin:0 0 10px}
+  .combo{display:flex;align-items:center;gap:6px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .combo:last-child{border-bottom:none}
+  .n{width:36px;height:36px;border-radius:50%;background:var(--ball);border:1.5px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:16px;flex:none}
+  .strong{background:var(--gold);border-color:var(--gold);color:#1B2A41;margin-right:auto}
+  .idx{color:var(--muted);font-size:12px;width:26px;flex:none}
+  .combo.new .n{animation:pop .35s ease both}
+  @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  @media(prefers-reduced-motion:reduce){.combo.new .n{animation:none}.bar i{transition:none}}
+  .actions{display:flex;gap:8px;margin-top:14px}
+  .actions button{flex:1}
+  details{margin-top:22px}
+  summary{cursor:pointer;font-weight:700;padding:8px 0;color:var(--muted)}
+  .past{margin-top:8px}
+  .past h3{font-size:14px;font-weight:500;color:var(--muted);margin:14px 0 4px}
+  .danger{color:var(--red);border-color:transparent;background:transparent}
+  .empty{color:var(--muted);text-align:center;padding:26px 0}
+  .browse{width:100%;margin-top:22px;padding:14px;font-size:17px;background:var(--ink);color:#fff;border:none;font-weight:900}
+  .sheet{position:fixed;inset:0;background:var(--bg);z-index:10;overflow-y:auto}
+  .sheet-in{max-width:560px;margin:0 auto;padding:16px 16px 60px}
+  .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .sheet-head h2{font-size:22px;font-weight:900;margin:0}
+  .sheet-head button{width:40px;height:40px;padding:0;border-radius:50%}
+  .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .seg button{flex:1;border:none;border-radius:0;background:#fff}
+  .seg button.on{background:var(--ink);color:#fff}
+  .check{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:14px 0}
+  .mini{width:0;flex:1;font-size:16px!important;font-weight:700;padding:8px 2px!important}
+  .strongIn{border-color:var(--gold)!important;background:#FFF7DD!important}
+  .checkOut{margin-top:8px;font-weight:700;min-height:22px}
+  .checkOut.used{color:var(--red)} .checkOut.free{color:#1E7D46}
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0;font-size:14px;color:var(--muted)}
+  .pager input{width:80px;font:inherit;font-weight:700;padding:6px;border:1.5px solid var(--line);border-radius:8px;text-align:center}
+  .combo.used{background:#FBE9EC;border-radius:8px;padding-right:6px;padding-left:6px}
+  .combo.used .n{border-color:var(--red)}
+  .combo .tag{font-size:11px;font-weight:700;color:var(--red);flex:none}
+  .toast{position:fixed;bottom:18px;right:50%;transform:translateX(50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>הגרלת צירופי לוטו</h1>
+  <p class="sub">6 מתוך 37 + מספר חזק. כל צירוף שיוצא מסומן ולא יחזור.</p>
+
+  <div class="panel">
+    <div class="row">
+      <label for="count" style="font-weight:700">כמה צירופים להגריל?</label>
+      <input id="count" type="number" min="1" max="500" value="10">
+    </div>
+    <div class="quick">
+      <button data-q="10">10</button><button data-q="20">20</button><button data-q="30">30</button><button data-q="40">40</button>
+    </div>
+    <button class="draw" id="drawBtn">הגרל</button>
+  </div>
+
+  <div class="stats">
+    <span>נבחרו עד כה: <b id="used">0</b></span>
+    <span>נותרו: <b id="left">16,273,488</b></span>
+  </div>
+  <div class="bar"><i id="barFill"></i></div>
+
+  <div class="panel">
+    <h2 id="lastTitle">ההגרלה האחרונה</h2>
+    <div id="last"><div class="empty">עדיין לא הגרלת. בחר כמות ולחץ "הגרל".</div></div>
+    <div class="actions" id="lastActions" hidden>
+      <button id="copyBtn">העתק</button>
+      <button id="shareBtn">שתף</button>
+    </div>
+  </div>
+
+  <details style="margin-top:14px">
+    <summary>הכנס צירוף משלך והוצא אותו מהמאגר</summary>
+    <div class="panel" style="margin-top:8px">
+      <div class="row" style="gap:6px">
+        <input class="mini man" type="number" min="1" max="37" placeholder="1">
+        <input class="mini man" type="number" min="1" max="37" placeholder="2">
+        <input class="mini man" type="number" min="1" max="37" placeholder="3">
+        <input class="mini man" type="number" min="1" max="37" placeholder="4">
+        <input class="mini man" type="number" min="1" max="37" placeholder="5">
+        <input class="mini man" type="number" min="1" max="37" placeholder="6">
+        <input class="mini strongIn manStrong" type="number" min="1" max="7" placeholder="חזק">
+      </div>
+      <button id="manualBtn" class="draw" style="margin-top:10px;background:var(--ink)">סמן את הצירוף</button>
+      <div id="manualOut" class="checkOut"></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>כל ההגרלות הקודמות</summary>
+    <div class="past" id="past"></div>
+    <div class="actions">
+      <button id="copyAll">העתק הכל</button>
+      <button id="resetBtn" class="danger">אפס הכל</button>
+    </div>
+  </details>
+
+  <button class="browse" id="browseBtn">צפה בכל הצירופים</button>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-in">
+    <div class="sheet-head">
+      <h2>כל הצירופים</h2>
+      <button id="closeSheet" aria-label="סגור">✕</button>
+    </div>
+
+    <div class="seg" role="group" aria-label="סינון">
+      <button data-f="all" class="on">הכל</button>
+      <button data-f="used">סומנו</button>
+      <button data-f="free">לא סומנו</button>
+    </div>
+
+    <div class="check">
+      <div class="row" style="gap:6px">
+        <input class="mini" type="number" min="1" max="37" placeholder="1">
+        <input class="mini" type="number" min="1" max="37" placeholder="2">
+        <input class="mini" type="number" min="1" max="37" placeholder="3">
+        <input class="mini" type="number" min="1" max="37" placeholder="4">
+        <input class="mini" type="number" min="1" max="37" placeholder="5">
+        <input class="mini" type="number" min="1" max="37" placeholder="6">
+        <input class="mini strongIn" type="number" min="1" max="7" placeholder="חזק">
+      </div>
+      <button id="checkBtn" style="width:100%;margin-top:8px">בדוק אם הצירוף סומן</button>
+      <div id="checkOut" class="checkOut"></div>
+    </div>
+
+    <div class="pager">
+      <button id="prevPg">‹ הקודם</button>
+      <span>עמוד <input id="pgIn" type="number" min="1" value="1"> מתוך <b id="pgTot"></b></span>
+      <button id="nextPg">הבא ›</button>
+    </div>
+    <div id="list"></div>
+    <div class="pager" id="pagerBottom">
+      <button id="prevPg2">‹ הקודם</button>
+      <button id="nextPg2">הבא ›</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- combinatorics: 6 of 37, strong 1-7 ----
+const N=37,K=6,S=7;
+const C=[];for(let n=0;n<=N;n++){C[n]=[];for(let k=0;k<=K;k++){C[n][k]=(k===0||k===n)?1:(k>n?0:C[n-1][k-1]+C[n-1][k]);}}
+const TOTAL_COMBOS=C[N][K];            // 2,324,784
+const TOTAL=TOTAL_COMBOS*S;            // 16,273,488
+
+// index -> [n1..n6, strong]  (lexicographic unranking)
+function unrank(idx){
+  let r=Math.floor(idx/S), strong=idx%S+1, nums=[], x=1;
+  for(let k=K;k>=1;k--){
+    while(true){
+      const c=C[N-x][k-1];          // combos starting with x
+      if(r<c){nums.push(x);x++;break;}
+      r-=c;x++;
+    }
+  }
+  return {nums,strong};
+}
+function randIdx(){
+  const buf=new Uint32Array(2);
+  while(true){
+    crypto.getRandomValues(buf);
+    const v=(buf[0]%16777216)*256+(buf[1]&255); // 32 bits, uniform
+    if(v<TOTAL) return v;
+  }
+}
+
+// ---- state & storage ----
+const KEY='lotto_draws_v1';
+let draws=[];                      // [{t, ids:[...]}]
+let usedSet=new Set();
+async function load(){
+  try{const v=localStorage.getItem(KEY);if(v){draws=JSON.parse(v);}}catch(e){draws=[];}
+  usedSet=new Set(draws.flatMap(d=>d.ids));
+  render();
+}
+async function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(draws));}catch(e){toast('השמירה נכשלה — הצירופים יישארו רק בסשן הזה');}
+}
+
+// ---- UI ----
+const $=s=>document.querySelector(s);
+const fmt=n=>n.toLocaleString('he-IL');
+function comboHTML(id,i,isNew){
+  const {nums,strong}=unrank(id);
+  return `<div class="combo${isNew?' new':''}"><span class="idx">${i+1}</span>${nums.map(n=>`<span class="n">${n}</span>`).join('')}<span class="n strong" title="מספר חזק">${strong}</span></div>`;
+}
+function comboText(id){const {nums,strong}=unrank(id);return nums.join(' ')+' | חזק '+strong;}
+function drawText(d){return new Date(d.t).toLocaleString('he-IL')+'\n'+d.ids.map(comboText).join('\n');}
+function render(isNew=false){
+  $('#used').textContent=fmt(usedSet.size);
+  $('#left').textContent=fmt(TOTAL-usedSet.size);
+  $('#barFill').style.width=Math.max(0.3,usedSet.size/TOTAL*100)+'%';
+  const last=draws[draws.length-1];
+  if(last){
+    $('#lastTitle').textContent=(last.manual?'צירוף שהכנסת ידנית':`ההגרלה האחרונה · ${last.ids.length} צירופים`)+` · ${new Date(last.t).toLocaleString('he-IL')}`;
+    $('#last').innerHTML=last.ids.map((id,i)=>comboHTML(id,i,isNew)).join('');
+    $('#lastActions').hidden=false;
+  }else{
+    $('#lastTitle').textContent='ההגרלה האחרונה';
+    $('#last').innerHTML='<div class="empty">עדיין לא הגרלת. בחר כמות ולחץ "הגרל".</div>';
+    $('#lastActions').hidden=true;
+  }
+  const past=draws.slice(0,-1).reverse();
+  $('#past').innerHTML=past.length?past.map(d=>`<h3>${new Date(d.t).toLocaleString('he-IL')} · ${d.manual?'ידני':d.ids.length+' צירופים'}</h3>`+d.ids.map((id,i)=>comboHTML(id,i)).join('')).join(''):'<div class="empty">אין הגרלות קודמות</div>';
+}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
+async function copy(text,msg){try{await navigator.clipboard.writeText(text);toast(msg);}catch(e){toast('לא ניתן להעתיק בדפדפן זה');}}
+
+$('#drawBtn').addEventListener('click',async()=>{
+  const n=Math.min(500,Math.max(1,parseInt($('#count').value)||1));
+  if(usedSet.size+n>TOTAL){toast('לא נשארו מספיק צירופים');return;}
+  const ids=[], picked=[];
+  // strong numbers: shuffled cycle so all 7 appear evenly across the batch
+  let strongPool=[];
+  const nextStrong=()=>{ if(!strongPool.length){strongPool=[1,2,3,4,5,6,7].sort(()=>Math.random()-.5);} return strongPool.pop(); };
+  const overlap=(a,b)=>a.filter(x=>b.includes(x)).length;
+  while(ids.length<n){
+    let best=null;
+    // try to find a combo that shares at most 2 numbers with every combo already in this batch;
+    // if that gets hard, relax to 3, then accept anything
+    for(const maxShare of [2,3,99]){
+      for(let t=0;t<3000&&!best;t++){
+        const id=randIdx();
+        if(usedSet.has(id)) continue;
+        const {nums}=unrank(id);
+        const spread=nums[5]-nums[0]>=15;                 // avoid tightly clustered combos
+        if(!spread&&maxShare<99) continue;
+        if(picked.every(p=>overlap(p,nums)<=maxShare)) best={id,nums};
+      }
+      if(best) break;
+    }
+    // swap strong number to the next one in the cycle
+    const base=Math.floor(best.id/S)*S, id=base+(nextStrong()-1);
+    if(usedSet.has(id)){ if(usedSet.has(best.id)) continue; usedSet.add(best.id); ids.push(best.id); }
+    else { usedSet.add(id); ids.push(id); }
+    picked.push(best.nums);
+  }
+  draws.push({t:Date.now(),ids});
+  render(true);
+  await save();
+});
+document.querySelectorAll('.quick button').forEach(b=>b.addEventListener('click',()=>{$('#count').value=b.dataset.q;}));
+$('#copyBtn').addEventListener('click',()=>copy(drawText(draws[draws.length-1]),'הועתק'));
+$('#shareBtn').addEventListener('click',async()=>{
+  const text=drawText(draws[draws.length-1]);
+  if(navigator.share){try{await navigator.share({text});}catch(e){}}else copy(text,'הועתק');
+});
+$('#copyAll').addEventListener('click',()=>{if(!draws.length){toast('אין מה להעתיק');return;}copy(draws.map(drawText).join('\n\n'),'הכל הועתק');});
+$('#resetBtn').addEventListener('click',async()=>{
+  if(!confirm('לאפס את כל הסימונים? כל הצירופים יהיו זמינים שוב.'))return;
+  draws=[];usedSet=new Set();render();
+  try{localStorage.removeItem(KEY);}catch(e){}
+  toast('אופס');
+});
+// ---- combination -> index (ranking) ----
+function rank(nums,strong){
+  const a=[...nums].sort((x,y)=>x-y);
+  let r=0,x=1;
+  for(let i=0;i<K;i++){
+    const k=K-i;
+    while(x<a[i]){r+=C[N-x][k-1];x++;}
+    x++;
+  }
+  return r*S+(strong-1);
+}
+
+// ---- browser: all combinations, paged ----
+const PAGE=100;
+let filter='all', page=1;
+let usedSorted=[];
+function totalPages(){
+  const n=filter==='used'?usedSorted.length:(filter==='free'?TOTAL-usedSet.size:TOTAL);
+  return Math.max(1,Math.ceil(n/PAGE));
+}
+function renderList(){
+  if(filter==='used') usedSorted=[...usedSet].sort((a,b)=>a-b);
+  const tp=totalPages(); page=Math.min(Math.max(1,page),tp);
+  $('#pgIn').value=page; $('#pgTot').textContent=fmt(tp);
+  const start=(page-1)*PAGE, rows=[];
+  if(filter==='used'){
+    if(!usedSorted.length) rows.push('<div class="empty">עדיין לא סומן שום צירוף</div>');
+    usedSorted.slice(start,start+PAGE).forEach((id,i)=>rows.push(browseRow(id,start+i,true)));
+  }else if(filter==='all'){
+    for(let id=start;id<Math.min(start+PAGE,TOTAL);id++) rows.push(browseRow(id,id,usedSet.has(id)));
+  }else{ // free: walk from start, skipping used ones (used set is tiny relative to total)
+    let id=start, seen=0;
+    // adjust for used ids before 'start' so page positions stay consistent
+    for(const u of usedSet) if(u<id) id++;
+    while(seen<PAGE&&id<TOTAL){ if(!usedSet.has(id)){rows.push(browseRow(id,start+seen,false));seen++;} id++; }
+  }
+  $('#list').innerHTML=rows.join('');
+}
+function browseRow(id,pos,used){
+  const {nums,strong}=unrank(id);
+  return `<div class="combo${used?' used':''}"><span class="idx" style="width:64px">${fmt(pos+1)}</span>${nums.map(n=>`<span class="n">${n}</span>`).join('')}<span class="n strong">${strong}</span>${used?'<span class="tag">סומן</span>':''}</div>`;
+}
+const go=d=>{page+=d;renderList();window.scrollTo({top:0});};
+$('#browseBtn').addEventListener('click',()=>{$('#sheet').hidden=false;document.body.style.overflow='hidden';page=1;renderList();});
+$('#closeSheet').addEventListener('click',()=>{$('#sheet').hidden=true;document.body.style.overflow='';});
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  filter=b.dataset.f;page=1;renderList();
+}));
+$('#prevPg').onclick=$('#prevPg2').onclick=()=>go(-1);
+$('#nextPg').onclick=$('#nextPg2').onclick=()=>go(1);
+$('#pgIn').addEventListener('change',()=>{page=parseInt($('#pgIn').value)||1;renderList();});
+$('#checkBtn').addEventListener('click',()=>{
+  const ins=[...document.querySelectorAll('.mini:not(.strongIn)')].map(i=>parseInt(i.value));
+  const strong=parseInt($('.strongIn').value);
+  const out=$('#checkOut'); out.className='checkOut';
+  if(ins.some(v=>!(v>=1&&v<=37))||new Set(ins).size!==6){out.textContent='הזן 6 מספרים שונים בין 1 ל-37';return;}
+  if(!(strong>=1&&strong<=7)){out.textContent='הזן מספר חזק בין 1 ל-7';return;}
+  const id=rank(ins,strong);
+  if(usedSet.has(id)){out.classList.add('used');out.textContent='הצירוף הזה כבר סומן ✔';}
+  else{out.classList.add('free');out.textContent='הצירוף הזה עדיין לא סומן — מספר סידורי '+fmt(id+1);}
+});
+
+$('#manualBtn').addEventListener('click',async()=>{
+  const ins=[...document.querySelectorAll('.man')].map(i=>parseInt(i.value));
+  const strong=parseInt($('.manStrong').value);
+  const out=$('#manualOut'); out.className='checkOut';
+  if(ins.some(v=>!(v>=1&&v<=37))||new Set(ins).size!==6){out.textContent='הזן 6 מספרים שונים בין 1 ל-37';return;}
+  if(!(strong>=1&&strong<=7)){out.textContent='הזן מספר חזק בין 1 ל-7';return;}
+  const id=rank(ins,strong);
+  if(usedSet.has(id)){out.classList.add('used');out.textContent='הצירוף הזה כבר סומן קודם';return;}
+  usedSet.add(id);
+  draws.push({t:Date.now(),ids:[id],manual:true});
+  render(true);
+  await save();
+  out.classList.add('free');out.textContent='סומן והוצא מהמאגר ✔';
+  document.querySelectorAll('.man,.manStrong').forEach(i=>i.value='');
+});
+
+load();
+</script>
+</body>
+</html>
