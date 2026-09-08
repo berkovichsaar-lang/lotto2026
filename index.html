@@ -118,6 +118,16 @@
   </details>
 
   <details>
+    <summary>העלה קובץ אקסל עם צירופים לסימון</summary>
+    <div class="panel" style="margin-top:8px">
+      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">קובץ Excel‏ (xlsx) או CSV. בכל שורה: 6 מספרים (1–37) ומספר חזק (1–7) — כמו בפורמט של lotto_30.</p>
+      <input id="fileIn" type="file" accept=".xlsx,.xls,.csv" style="width:100%">
+      <button id="uploadBtn" class="draw" style="margin-top:10px;background:var(--ink)">סמן את הצירופים מהקובץ</button>
+      <div id="uploadOut" class="checkOut"></div>
+    </div>
+  </details>
+
+  <details>
     <summary>כל ההגרלות הקודמות</summary>
     <div class="past" id="past"></div>
     <div class="actions">
@@ -164,6 +174,7 @@
     <div id="list"></div>
     <div class="pager" id="pagerBottom">
       <button id="prevPg2">‹ הקודם</button>
+      <span>עמוד <input id="pgIn2" type="number" min="1" value="1"> מתוך <b id="pgTot2"></b></span>
       <button id="nextPg2">הבא ›</button>
     </div>
   </div>
@@ -198,6 +209,40 @@ function randIdx(){
   }
 }
 
+// ---- built-in marked combos (from lotto_30.xlsx) ----
+const SEED=[
+[[8,18,21,24,27,30],3],
+[[10,12,17,19,26,33],1],
+[[2,3,7,16,20,22],7],
+[[15,23,28,31,32,37],4],
+[[4,9,13,34,35,36],2],
+[[1,5,11,14,25,29],5],
+[[4,6,18,25,28,35],6],
+[[2,5,7,30,34,37],4],
+[[1,14,17,22,26,33],7],
+[[6,8,10,21,27,29],2],
+[[9,13,19,20,24,36],5],
+[[3,11,12,16,23,32],3],
+[[5,13,14,15,27,31],6],
+[[7,8,11,18,31,35],1],
+[[2,4,12,15,17,24],6],
+[[10,21,23,25,32,36],7],
+[[3,6,26,28,29,33],2],
+[[9,16,20,22,30,37],5],
+[[1,12,17,19,20,34],4],
+[[3,14,19,26,27,31],3],
+[[4,13,18,21,32,37],1],
+[[6,24,25,28,29,35],4],
+[[5,7,10,16,30,33],7],
+[[2,8,9,11,23,34],3],
+[[1,8,15,22,26,36],5],
+[[2,6,7,20,22,36],6],
+[[10,11,15,25,28,35],2],
+[[5,9,21,24,31,34],1],
+[[3,4,19,23,32,33],1],
+[[1,12,14,16,17,37],2]
+];
+
 // ---- state & storage ----
 const KEY='lotto_draws_v1';
 let draws=[];                      // [{t, ids:[...]}]
@@ -205,7 +250,16 @@ let usedSet=new Set();
 async function load(){
   try{const v=localStorage.getItem(KEY);if(v){draws=JSON.parse(v);}}catch(e){draws=[];}
   usedSet=new Set(draws.flatMap(d=>d.ids));
+  await ensureSeed();
   render();
+}
+// mark the built-in list; re-applies after a reset so it is always in the pool
+async function ensureSeed(){
+  const missing=SEED.map(([nums,strong])=>rank(nums,strong)).filter(id=>!usedSet.has(id));
+  if(!missing.length) return;
+  missing.forEach(id=>usedSet.add(id));
+  draws.unshift({t:Date.now(),ids:missing,imported:true,label:'lotto_30.xlsx'});
+  await save();
 }
 async function save(){
   try{localStorage.setItem(KEY,JSON.stringify(draws));}catch(e){toast('השמירה נכשלה — הצירופים יישארו רק בסשן הזה');}
@@ -226,7 +280,7 @@ function render(isNew=false){
   $('#barFill').style.width=Math.max(0.3,usedSet.size/TOTAL*100)+'%';
   const last=draws[draws.length-1];
   if(last){
-    $('#lastTitle').textContent=(last.manual?'צירוף שהכנסת ידנית':`ההגרלה האחרונה · ${last.ids.length} צירופים`)+` · ${new Date(last.t).toLocaleString('he-IL')}`;
+    $('#lastTitle').textContent=(last.manual?'צירוף שהכנסת ידנית':last.imported?`יובאו מקובץ ${last.label||''} · ${last.ids.length} צירופים`:`ההגרלה האחרונה · ${last.ids.length} צירופים`)+` · ${new Date(last.t).toLocaleString('he-IL')}`;
     $('#last').innerHTML=last.ids.map((id,i)=>comboHTML(id,i,isNew)).join('');
     $('#lastActions').hidden=false;
   }else{
@@ -235,7 +289,7 @@ function render(isNew=false){
     $('#lastActions').hidden=true;
   }
   const past=draws.slice(0,-1).reverse();
-  $('#past').innerHTML=past.length?past.map(d=>`<h3>${new Date(d.t).toLocaleString('he-IL')} · ${d.manual?'ידני':d.ids.length+' צירופים'}</h3>`+d.ids.map((id,i)=>comboHTML(id,i)).join('')).join(''):'<div class="empty">אין הגרלות קודמות</div>';
+  $('#past').innerHTML=past.length?past.map(d=>`<h3>${new Date(d.t).toLocaleString('he-IL')} · ${d.manual?'ידני':d.imported?'יובא מקובץ '+(d.label||''):d.ids.length+' צירופים'}</h3>`+d.ids.map((id,i)=>comboHTML(id,i)).join('')).join(''):'<div class="empty">אין הגרלות קודמות</div>';
 }
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 async function copy(text,msg){try{await navigator.clipboard.writeText(text);toast(msg);}catch(e){toast('לא ניתן להעתיק בדפדפן זה');}}
@@ -281,9 +335,11 @@ $('#shareBtn').addEventListener('click',async()=>{
 });
 $('#copyAll').addEventListener('click',()=>{if(!draws.length){toast('אין מה להעתיק');return;}copy(draws.map(drawText).join('\n\n'),'הכל הועתק');});
 $('#resetBtn').addEventListener('click',async()=>{
-  if(!confirm('לאפס את כל הסימונים? כל הצירופים יהיו זמינים שוב.'))return;
-  draws=[];usedSet=new Set();render();
+  if(!confirm('לאפס את כל הסימונים? כל הצירופים יהיו זמינים שוב (מלבד רשימת הקבע מהקובץ).'))return;
+  draws=[];usedSet=new Set();
   try{localStorage.removeItem(KEY);}catch(e){}
+  await ensureSeed();
+  render();
   toast('אופס');
 });
 // ---- combination -> index (ranking) ----
@@ -299,7 +355,7 @@ function rank(nums,strong){
 }
 
 // ---- browser: all combinations, paged ----
-const PAGE=100;
+const PAGE=500;
 let filter='all', page=1;
 let usedSorted=[];
 function totalPages(){
@@ -310,6 +366,7 @@ function renderList(){
   if(filter==='used') usedSorted=[...usedSet].sort((a,b)=>a-b);
   const tp=totalPages(); page=Math.min(Math.max(1,page),tp);
   $('#pgIn').value=page; $('#pgTot').textContent=fmt(tp);
+  $('#pgIn2').value=page; $('#pgTot2').textContent=fmt(tp);
   const start=(page-1)*PAGE, rows=[];
   if(filter==='used'){
     if(!usedSorted.length) rows.push('<div class="empty">עדיין לא סומן שום צירוף</div>');
@@ -338,6 +395,7 @@ document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',(
 $('#prevPg').onclick=$('#prevPg2').onclick=()=>go(-1);
 $('#nextPg').onclick=$('#nextPg2').onclick=()=>go(1);
 $('#pgIn').addEventListener('change',()=>{page=parseInt($('#pgIn').value)||1;renderList();});
+$('#pgIn2').addEventListener('change',()=>{page=parseInt($('#pgIn2').value)||1;renderList();window.scrollTo({top:0});});
 $('#checkBtn').addEventListener('click',()=>{
   const ins=[...document.querySelectorAll('.mini:not(.strongIn)')].map(i=>parseInt(i.value));
   const strong=parseInt($('.strongIn').value);
@@ -363,6 +421,59 @@ $('#manualBtn').addEventListener('click',async()=>{
   await save();
   out.classList.add('free');out.textContent='סומן והוצא מהמאגר ✔';
   document.querySelectorAll('.man,.manStrong').forEach(i=>i.value='');
+});
+
+// ---- upload excel/csv with combos to mark ----
+let xlsxLib=null;
+function loadXLSX(){
+  if(xlsxLib) return Promise.resolve(xlsxLib);
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>{xlsxLib=window.XLSX;res(xlsxLib);};
+    s.onerror=()=>rej(new Error('load failed'));
+    document.head.appendChild(s);
+  });
+}
+$('#uploadBtn').addEventListener('click',async()=>{
+  const out=$('#uploadOut'); out.className='checkOut';
+  const file=$('#fileIn').files[0];
+  if(!file){out.textContent='בחר קובץ קודם';return;}
+  out.textContent='קורא את הקובץ…';
+  let rows;
+  try{
+    if(/\.csv$/i.test(file.name)){
+      rows=(await file.text()).split(/\r?\n/).map(l=>l.split(','));
+    }else{
+      const X=await loadXLSX();
+      const wb=X.read(await file.arrayBuffer());
+      rows=X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true});
+    }
+  }catch(e){out.classList.add('used');out.textContent='לא הצלחתי לקרוא את הקובץ';return;}
+  let added=[],dup=0,bad=0;
+  for(const row of rows){
+    const nums=[];
+    for(const cell of row||[]){
+      if(typeof cell==='number') nums.push(cell);
+      else if(typeof cell==='string') (cell.match(/\d+/g)||[]).forEach(m=>nums.push(parseInt(m)));
+    }
+    if(!nums.length) continue;              // header / empty row
+    if(nums.length!==7){bad++;continue;}
+    const six=nums.slice(0,6), strong=nums[6];
+    if(six.some(v=>!(v>=1&&v<=37))||new Set(six).size!==6||!(strong>=1&&strong<=7)){bad++;continue;}
+    const id=rank(six,strong);
+    if(usedSet.has(id)||added.includes(id)){dup++;continue;}
+    added.push(id);
+  }
+  if(added.length){
+    added.forEach(id=>usedSet.add(id));
+    draws.push({t:Date.now(),ids:added,imported:true,label:file.name});
+    render(true);
+    await save();
+  }
+  out.classList.add(added.length?'free':'used');
+  out.textContent=`סומנו ${added.length} צירופים חדשים`+(dup?` · ${dup} כבר היו מסומנים`:'')+(bad?` · ${bad} שורות לא תקינות`:'');
+  $('#fileIn').value='';
 });
 
 load();
