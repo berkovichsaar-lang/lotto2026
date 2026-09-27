@@ -239,6 +239,8 @@
       <label for="gjump" style="font-size:14px">קפוץ לצירוף מס׳</label>
       <input id="gjump" type="number" min="1" max="16273488" style="max-width:150px;font-size:16px;padding:7px">
       <button id="gjumpBtn">קפוץ</button>
+      <button id="gdice" title="ערבב את הריבועים" style="font-size:20px;padding:6px 12px;margin-right:auto">🎲</button>
+      <button id="gorder" hidden>↩ לפי הסדר</button>
     </div>
     <div id="ghover"></div>
 
@@ -546,8 +548,37 @@ function freeIdAt(idx){ // the idx-th combo that is still in the pool
   for(const u of gSortedUsed){if(u<=id)id++;else break;}
   return id;
 }
+// ---- shuffle: seeded Feistel permutation over [0,total) — random-looking, reversible, zero memory ----
+function makeShuf(total){
+  const bits=Math.max(4,Math.ceil(Math.log2(total))),half=Math.ceil(bits/2);
+  return {k:[...crypto.getRandomValues(new Uint32Array(4))],total,half,mask:(1<<half)-1,domain:1<<(2*half)};
+}
+function shufRound(s,r,i){
+  let f=Math.imul(r+s.k[i],0x9E3779B1)>>>0;
+  f^=f>>>15;
+  return f&s.mask;
+}
+function shufMap(s,idx){
+  let v=idx;
+  do{
+    let l=v>>s.half,r=v&s.mask;
+    for(let i=0;i<4;i++){const t=r;r=(l^shufRound(s,r,i))&s.mask;l=t;}
+    v=(l<<s.half)|r;
+  }while(v>=s.total);
+  return v;
+}
+function shufInv(s,idx){
+  let v=idx;
+  do{
+    let l=v>>s.half,r=v&s.mask;
+    for(let i=3;i>=0;i--){const t=l;l=(r^shufRound(s,l,i))&s.mask;r=t;}
+    v=(l<<s.half)|r;
+  }while(v>=s.total);
+  return v;
+}
 function gIdAtIndex(idx){
   if(idx<0||idx>=gTotalItems())return -1;
+  if(G.shuf)idx=shufMap(G.shuf,idx);
   if(G.mode==='all')return idx;
   if(G.mode==='free')return freeIdAt(idx);
   return gArrCache[idx];
@@ -558,6 +589,7 @@ function gLayout(){
   gSortedUsed=[...usedSet].sort((a,b)=>a-b);
   gArrCache=gArr()||[];
   const total=gTotalItems();
+  if(G.shuf&&G.shuf.total!==total)G.shuf=makeShuf(total);
   const dpr=window.devicePixelRatio||1;
   // browsers cap scrollable height (~33.5M css px / dpr) — force enough columns to stay under it
   const maxH=Math.min(14e6,Math.floor(3e7/dpr));
@@ -584,13 +616,13 @@ function gPaint(){
   }
   const r0=Math.floor(st/G.cell),r1=Math.min(G.rows-1,Math.ceil((st+h)/G.cell));
   const s=G.cell-2*G.pad,round=!!gctx.roundRect;
-  const isFree=G.mode==='free';
-  let freeId=isFree?freeIdAt(r0*G.cols):0;
+  const fastFree=G.mode==='free'&&!G.shuf;
+  let freeId=fastFree?freeIdAt(r0*G.cols):0;
   for(let r=r0;r<=r1;r++)for(let c=0;c<G.cols;c++){
     const idx=r*G.cols+c;
     if(idx>=total)break;
     let id;
-    if(isFree){while(usedSet.has(freeId))freeId++;id=freeId;freeId++;}
+    if(fastFree){while(usedSet.has(freeId))freeId++;id=freeId;freeId++;}
     else id=gIdAtIndex(idx);
     gctx.fillStyle=G.sel.has(id)?GCOL.sel:winnersSet.has(id)?GCOL.won:usedSet.has(id)?GCOL.used:GCOL.free;
     const x=c*G.cell+G.pad,y=r*G.cell-st+G.pad;
@@ -652,6 +684,7 @@ $('#gjumpBtn').addEventListener('click',()=>{
     idx=gArrCache.indexOf(id);
     if(idx<0){toast('הצירוף לא נמצא בתצוגה הנוכחית');return;}
   }
+  if(G.shuf)idx=shufInv(G.shuf,idx);
   gwrap.scrollTop=Math.max(0,Math.floor(idx/G.cols)*G.cell-gwrap.clientHeight/2);
   G.flash=id;gPaint();
   setTimeout(()=>{G.flash=-1;gPaint();},2500);
@@ -660,9 +693,23 @@ document.querySelectorAll('#gseg button').forEach(b=>b.addEventListener('click',
   document.querySelectorAll('#gseg button').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');
   G.mode=b.dataset.m;G.flash=-1;
+  G.shuf=null;$('#gorder').hidden=true;
   gwrap.scrollTop=0;gwrap.scrollLeft=0;
   gLayout();gPaint();
 }));
+$('#gdice').addEventListener('click',()=>{
+  G.shuf=makeShuf(gTotalItems());
+  $('#gorder').hidden=false;
+  gwrap.scrollTop=0;
+  gPaint();
+  toast('הריבועים עורבבו 🎲');
+});
+$('#gorder').addEventListener('click',()=>{
+  G.shuf=null;
+  $('#gorder').hidden=true;
+  gwrap.scrollTop=0;
+  gPaint();
+});
 function gFullUI(on){$('#gfull').textContent=on?'✕ צא ממסך מלא':'⛶ מסך מלא';}
 $('#gfull').addEventListener('click',async()=>{
   const g=$('#game');
