@@ -67,6 +67,14 @@
   .combo .tag{font-size:11px;font-weight:700;color:var(--red);flex:none}
   .toast{position:fixed;bottom:18px;right:50%;transform:translateX(50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none}
   .toast.show{opacity:1}
+  .combo.won{background:#FFF3CC;border-radius:8px;padding-right:6px;padding-left:6px}
+  .combo.won .n{border-color:var(--gold)}
+  .combo .tagWin{font-size:11px;font-weight:700;color:#8A6400;flex:none}
+  .glegend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:10px 0 8px}
+  .glegend i{display:inline-block;width:13px;height:13px;border-radius:3px;vertical-align:-2px;margin-left:5px}
+  #gwrap{position:relative;height:56vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+  #gcanvas{position:absolute;top:0;left:0;pointer-events:none;will-change:transform}
+  #ghover{font-size:13px;color:var(--muted);min-height:20px;margin:6px 2px 0}
 </style>
 </head>
 <body>
@@ -117,6 +125,24 @@
     </div>
   </details>
 
+  <details style="margin-top:14px">
+    <summary>הכנס צירוף מנצח 🏆</summary>
+    <div class="panel" style="margin-top:8px">
+      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">צירוף שכבר זכה בלוטו — יוצא מהמאגר ויסומן בזהב כצירוף שניצח.</p>
+      <div class="row" style="gap:6px">
+        <input class="mini winIn" type="number" min="1" max="37" placeholder="1">
+        <input class="mini winIn" type="number" min="1" max="37" placeholder="2">
+        <input class="mini winIn" type="number" min="1" max="37" placeholder="3">
+        <input class="mini winIn" type="number" min="1" max="37" placeholder="4">
+        <input class="mini winIn" type="number" min="1" max="37" placeholder="5">
+        <input class="mini winIn" type="number" min="1" max="37" placeholder="6">
+        <input class="mini strongIn winStrong" type="number" min="1" max="7" placeholder="חזק">
+      </div>
+      <button id="winBtn" class="draw" style="margin-top:10px;background:var(--gold);color:#1B2A41">סמן כצירוף מנצח</button>
+      <div id="winOut" class="checkOut"></div>
+    </div>
+  </details>
+
   <details>
     <summary>העלה קובץ אקסל עם צירופים לסימון</summary>
     <div class="panel" style="margin-top:8px">
@@ -137,6 +163,7 @@
   </details>
 
   <button class="browse" id="browseBtn">צפה בכל הצירופים</button>
+  <button class="browse" id="gameBtn" style="background:#1E7D46">בניין הצירופים 🎮</button>
 </div>
 
 <div class="sheet" id="sheet" hidden>
@@ -176,6 +203,44 @@
       <button id="prevPg2">‹ הקודם</button>
       <span>עמוד <input id="pgIn2" type="number" min="1" value="1"> מתוך <b id="pgTot2"></b></span>
       <button id="nextPg2">הבא ›</button>
+    </div>
+  </div>
+</div>
+<div class="sheet" id="game" hidden>
+  <div class="sheet-in" style="max-width:900px">
+    <div class="sheet-head">
+      <h2>בניין הצירופים</h2>
+      <button id="closeGame" aria-label="סגור">✕</button>
+    </div>
+
+    <div class="glegend">
+      <span><i style="background:#CDE7D3"></i>במאגר</span>
+      <span><i style="background:#D9536A"></i>הוצא מהמאגר</span>
+      <span><i style="background:#E4A400"></i>זכה 🏆</span>
+      <span><i style="background:#3B6FE0"></i>נבחר</span>
+      <span style="margin-right:auto">סה״כ 16,273,488 ריבועים · כל ריבוע = צירוף</span>
+    </div>
+
+    <div class="row" style="gap:8px">
+      <label for="gjump" style="font-size:14px">קפוץ לצירוף מס׳</label>
+      <input id="gjump" type="number" min="1" max="16273488" style="max-width:150px;font-size:16px;padding:7px">
+      <button id="gjumpBtn">קפוץ</button>
+    </div>
+    <div id="ghover"></div>
+
+    <div id="gwrap">
+      <div id="gspace"></div>
+      <canvas id="gcanvas"></canvas>
+    </div>
+
+    <div class="panel" style="margin-top:12px">
+      <div class="row" style="justify-content:space-between">
+        <b>נבחרו: <span id="gselCount">0</span></b>
+        <button id="gclear">נקה בחירה</button>
+      </div>
+      <div id="gselList"></div>
+      <button id="gtake" class="draw" disabled>הוצא מהמאגר</button>
+      <div id="gtaken"></div>
     </div>
   </div>
 </div>
@@ -250,9 +315,12 @@ let usedSet=new Set();
 async function load(){
   try{const v=localStorage.getItem(KEY);if(v){draws=JSON.parse(v);}}catch(e){draws=[];}
   usedSet=new Set(draws.flatMap(d=>d.ids));
+  recomputeWinners();
   await ensureSeed();
   render();
 }
+let winnersSet=new Set();
+function recomputeWinners(){winnersSet=new Set(draws.filter(d=>d.win).flatMap(d=>d.ids));}
 // mark the built-in list; re-applies after a reset so it is always in the pool
 async function ensureSeed(){
   const missing=SEED.map(([nums,strong])=>rank(nums,strong)).filter(id=>!usedSet.has(id));
@@ -280,7 +348,7 @@ function render(isNew=false){
   $('#barFill').style.width=Math.max(0.3,usedSet.size/TOTAL*100)+'%';
   const last=draws[draws.length-1];
   if(last){
-    $('#lastTitle').textContent=(last.manual?'צירוף שהכנסת ידנית':last.imported?`יובאו מקובץ ${last.label||''} · ${last.ids.length} צירופים`:`ההגרלה האחרונה · ${last.ids.length} צירופים`)+` · ${new Date(last.t).toLocaleString('he-IL')}`;
+    $('#lastTitle').textContent=(last.win?'צירוף מנצח 🏆':last.game?`בניין הצירופים · ${last.ids.length} צירופים`:last.manual?'צירוף שהכנסת ידנית':last.imported?`יובאו מקובץ ${last.label||''} · ${last.ids.length} צירופים`:`ההגרלה האחרונה · ${last.ids.length} צירופים`)+` · ${new Date(last.t).toLocaleString('he-IL')}`;
     $('#last').innerHTML=last.ids.map((id,i)=>comboHTML(id,i,isNew)).join('');
     $('#lastActions').hidden=false;
   }else{
@@ -288,8 +356,9 @@ function render(isNew=false){
     $('#last').innerHTML='<div class="empty">עדיין לא הגרלת. בחר כמות ולחץ "הגרל".</div>';
     $('#lastActions').hidden=true;
   }
+  if(typeof G!=='undefined'&&!$('#game').hidden)gPaint();
   const past=draws.slice(0,-1).reverse();
-  $('#past').innerHTML=past.length?past.map(d=>`<h3>${new Date(d.t).toLocaleString('he-IL')} · ${d.manual?'ידני':d.imported?'יובא מקובץ '+(d.label||''):d.ids.length+' צירופים'}</h3>`+d.ids.map((id,i)=>comboHTML(id,i)).join('')).join(''):'<div class="empty">אין הגרלות קודמות</div>';
+  $('#past').innerHTML=past.length?past.map(d=>`<h3>${new Date(d.t).toLocaleString('he-IL')} · ${d.win?'צירוף מנצח 🏆':d.game?'בניין הצירופים · '+d.ids.length+' צירופים':d.manual?'ידני':d.imported?'יובא מקובץ '+(d.label||''):d.ids.length+' צירופים'}</h3>`+d.ids.map((id,i)=>comboHTML(id,i)).join('')).join(''):'<div class="empty">אין הגרלות קודמות</div>';
 }
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);}
 async function copy(text,msg){try{await navigator.clipboard.writeText(text);toast(msg);}catch(e){toast('לא ניתן להעתיק בדפדפן זה');}}
@@ -383,7 +452,8 @@ function renderList(){
 }
 function browseRow(id,pos,used){
   const {nums,strong}=unrank(id);
-  return `<div class="combo${used?' used':''}"><span class="idx" style="width:64px">${fmt(pos+1)}</span>${nums.map(n=>`<span class="n">${n}</span>`).join('')}<span class="n strong">${strong}</span>${used?'<span class="tag">סומן</span>':''}</div>`;
+  const won=winnersSet.has(id);
+  return `<div class="combo${won?' won':used?' used':''}"><span class="idx" style="width:64px">${fmt(pos+1)}</span>${nums.map(n=>`<span class="n">${n}</span>`).join('')}<span class="n strong">${strong}</span>${won?'<span class="tagWin">🏆 זכה</span>':used?'<span class="tag">סומן</span>':''}</div>`;
 }
 const go=d=>{page+=d;renderList();window.scrollTo({top:0});};
 $('#browseBtn').addEventListener('click',()=>{$('#sheet').hidden=false;document.body.style.overflow='hidden';page=1;renderList();});
@@ -403,7 +473,8 @@ $('#checkBtn').addEventListener('click',()=>{
   if(ins.some(v=>!(v>=1&&v<=37))||new Set(ins).size!==6){out.textContent='הזן 6 מספרים שונים בין 1 ל-37';return;}
   if(!(strong>=1&&strong<=7)){out.textContent='הזן מספר חזק בין 1 ל-7';return;}
   const id=rank(ins,strong);
-  if(usedSet.has(id)){out.classList.add('used');out.textContent='הצירוף הזה כבר סומן ✔';}
+  if(winnersSet.has(id)){out.classList.add('used');out.textContent='הצירוף הזה כבר זכה בלוטו 🏆';}
+  else if(usedSet.has(id)){out.classList.add('used');out.textContent='הצירוף הזה כבר סומן ✔';}
   else{out.classList.add('free');out.textContent='הצירוף הזה עדיין לא סומן — מספר סידורי '+fmt(id+1);}
 });
 
@@ -422,6 +493,118 @@ $('#manualBtn').addEventListener('click',async()=>{
   out.classList.add('free');out.textContent='סומן והוצא מהמאגר ✔';
   document.querySelectorAll('.man,.manStrong').forEach(i=>i.value='');
 });
+
+// ---- winning combo entry ----
+$('#winBtn').addEventListener('click',async()=>{
+  const ins=[...document.querySelectorAll('.winIn')].map(i=>parseInt(i.value));
+  const strong=parseInt($('.winStrong').value);
+  const out=$('#winOut'); out.className='checkOut';
+  if(ins.some(v=>!(v>=1&&v<=37))||new Set(ins).size!==6){out.textContent='הזן 6 מספרים שונים בין 1 ל-37';return;}
+  if(!(strong>=1&&strong<=7)){out.textContent='הזן מספר חזק בין 1 ל-7';return;}
+  const id=rank(ins,strong);
+  if(winnersSet.has(id)){out.classList.add('used');out.textContent='הצירוף הזה כבר מסומן כמנצח 🏆';return;}
+  const wasUsed=usedSet.has(id);
+  usedSet.add(id);
+  draws.push({t:Date.now(),ids:[id],manual:true,win:true});
+  recomputeWinners();
+  render(true);
+  await save();
+  out.classList.add('free');
+  out.textContent=wasUsed?'סומן כצירוף מנצח 🏆 (כבר היה מחוץ למאגר)':'סומן כצירוף מנצח 🏆 והוצא מהמאגר';
+  document.querySelectorAll('.winIn,.winStrong').forEach(i=>i.value='');
+});
+
+// ---- combo builder game: all 16,273,488 combos as a virtual canvas grid ----
+const G={cell:16,pad:1.5,cols:0,rows:0,sel:new Set(),flash:-1};
+const gwrap=$('#gwrap'),gspace=$('#gspace'),gcv=$('#gcanvas'),gctx=gcv.getContext('2d');
+const GCOL={free:'#CDE7D3',used:'#D9536A',won:'#E4A400',sel:'#3B6FE0'};
+function gLayout(){
+  const w=gwrap.clientWidth,h=gwrap.clientHeight;
+  if(!w)return;
+  const dpr=window.devicePixelRatio||1;
+  // browsers cap scrollable height (~33.5M css px / dpr) — force enough columns to stay under it
+  const maxH=Math.min(14e6,Math.floor(3e7/dpr));
+  G.cols=Math.max(Math.floor(w/G.cell),Math.ceil(TOTAL*G.cell/maxH));
+  G.rows=Math.ceil(TOTAL/G.cols);
+  gspace.style.height=(G.rows*G.cell)+'px';
+  const cw=Math.max(w,G.cols*G.cell);
+  gspace.style.width=cw+'px';
+  gcv.width=Math.floor(cw*dpr);gcv.height=Math.floor(h*dpr);
+  gcv.style.width=cw+'px';gcv.style.height=h+'px';
+}
+function gPaint(){
+  if($('#game').hidden||!G.cols)return;
+  const st=gwrap.scrollTop,h=gwrap.clientHeight,dpr=window.devicePixelRatio||1;
+  gcv.style.transform=`translateY(${st}px)`;
+  gctx.setTransform(dpr,0,0,dpr,0,0);
+  gctx.clearRect(0,0,gcv.width,gcv.height);
+  const r0=Math.floor(st/G.cell),r1=Math.min(G.rows-1,Math.ceil((st+h)/G.cell));
+  const s=G.cell-2*G.pad,round=!!gctx.roundRect;
+  for(let r=r0;r<=r1;r++)for(let c=0;c<G.cols;c++){
+    const id=r*G.cols+c;
+    if(id>=TOTAL)break;
+    gctx.fillStyle=G.sel.has(id)?GCOL.sel:winnersSet.has(id)?GCOL.won:usedSet.has(id)?GCOL.used:GCOL.free;
+    const x=c*G.cell+G.pad,y=r*G.cell-st+G.pad;
+    if(round){gctx.beginPath();gctx.roundRect(x,y,s,s,3);gctx.fill();}
+    else gctx.fillRect(x,y,s,s);
+    if(id===G.flash){gctx.strokeStyle='#1B2A41';gctx.lineWidth=2.5;gctx.stroke();}
+  }
+}
+function gIdAt(e){
+  const rect=gwrap.getBoundingClientRect();
+  const x=e.clientX-rect.left+gwrap.scrollLeft,y=e.clientY-rect.top+gwrap.scrollTop;
+  const c=Math.floor(x/G.cell),r=Math.floor(y/G.cell);
+  if(c<0||c>=G.cols||r<0)return -1;
+  const id=r*G.cols+c;
+  return id<TOTAL?id:-1;
+}
+gwrap.addEventListener('click',e=>{
+  const id=gIdAt(e);
+  if(id<0)return;
+  if(winnersSet.has(id)){toast('הצירוף הזה כבר זכה 🏆');return;}
+  if(usedSet.has(id)){toast('הצירוף הזה כבר הוצא מהמאגר');return;}
+  G.sel.has(id)?G.sel.delete(id):G.sel.add(id);
+  gSel();gPaint();
+});
+gwrap.addEventListener('mousemove',e=>{
+  const id=gIdAt(e);
+  $('#ghover').textContent=id<0?'':`צירוף מס׳ ${fmt(id+1)}: ${comboText(id)}`;
+});
+function gSel(){
+  const ids=[...G.sel].sort((a,b)=>a-b);
+  $('#gselCount').textContent=fmt(ids.length);
+  $('#gselList').innerHTML=ids.slice(0,50).map((id,i)=>comboHTML(id,i)).join('')+(ids.length>50?`<div class="empty">ועוד ${fmt(ids.length-50)} צירופים נבחרים…</div>`:'');
+  $('#gtake').disabled=!ids.length;
+}
+$('#gtake').addEventListener('click',async()=>{
+  const ids=[...G.sel].sort((a,b)=>a-b).filter(id=>!usedSet.has(id));
+  if(!ids.length)return;
+  ids.forEach(id=>usedSet.add(id));
+  draws.push({t:Date.now(),ids,game:true});
+  G.sel.clear();gSel();
+  $('#gtaken').innerHTML='<h3 style="font-size:14px;font-weight:500;color:var(--muted);margin:14px 0 4px">הוצאו מהמאגר עכשיו:</h3>'+ids.map((id,i)=>comboHTML(id,i,true)).join('');
+  render();
+  await save();
+  gPaint();
+  toast('הוצאו '+fmt(ids.length)+' צירופים מהמאגר');
+});
+$('#gclear').addEventListener('click',()=>{G.sel.clear();gSel();gPaint();});
+$('#gjumpBtn').addEventListener('click',()=>{
+  const n=parseInt($('#gjump').value);
+  if(!(n>=1&&n<=TOTAL)){toast('הזן מספר בין 1 ל-16,273,488');return;}
+  const id=n-1;
+  gwrap.scrollTop=Math.max(0,Math.floor(id/G.cols)*G.cell-gwrap.clientHeight/2);
+  G.flash=id;gPaint();
+  setTimeout(()=>{G.flash=-1;gPaint();},2500);
+});
+let gRaf=0;
+gwrap.addEventListener('scroll',()=>{if(!gRaf)gRaf=requestAnimationFrame(()=>{gRaf=0;gPaint();});});
+window.addEventListener('resize',()=>{if(!$('#game').hidden){gLayout();gPaint();}});
+$('#gameBtn').addEventListener('click',()=>{
+  $('#game').hidden=false;document.body.style.overflow='hidden';
+  gLayout();gPaint();
+});
+$('#closeGame').addEventListener('click',()=>{$('#game').hidden=true;document.body.style.overflow='';});
 
 // ---- upload excel/csv with combos to mark ----
 let xlsxLib=null;
