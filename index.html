@@ -75,6 +75,9 @@
   #gwrap{position:relative;height:56vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
   #gcanvas{position:absolute;top:0;left:0;pointer-events:none;will-change:transform}
   #ghover{font-size:13px;color:var(--muted);min-height:20px;margin:6px 2px 0}
+  #game.full .sheet-in{max-width:none;padding:14px 20px 30px}
+  #game.full #gwrap{height:calc(100vh - 285px);min-height:300px}
+  #gseg{margin-bottom:2px}
 </style>
 </head>
 <body>
@@ -210,7 +213,18 @@
   <div class="sheet-in" style="max-width:900px">
     <div class="sheet-head">
       <h2>בניין הצירופים</h2>
-      <button id="closeGame" aria-label="סגור">✕</button>
+      <span style="display:flex;gap:8px">
+        <button id="gfull" style="width:auto;padding:0 14px;border-radius:10px;font-size:14px">⛶ מסך מלא</button>
+        <button id="closeGame" aria-label="סגור">✕</button>
+      </span>
+    </div>
+
+    <div class="seg" id="gseg" role="group" aria-label="סינון תצוגה">
+      <button data-m="all" class="on">הכל</button>
+      <button data-m="free">במאגר</button>
+      <button data-m="used">הוצאו</button>
+      <button data-m="won">זכו 🏆</button>
+      <button data-m="sel">נבחרו</button>
     </div>
 
     <div class="glegend">
@@ -218,7 +232,7 @@
       <span><i style="background:#D9536A"></i>הוצא מהמאגר</span>
       <span><i style="background:#E4A400"></i>זכה 🏆</span>
       <span><i style="background:#3B6FE0"></i>נבחר</span>
-      <span style="margin-right:auto">סה״כ 16,273,488 ריבועים · כל ריבוע = צירוף</span>
+      <span style="margin-right:auto" id="gmodeinfo">סה״כ 16,273,488 ריבועים · כל ריבוע = צירוף</span>
     </div>
 
     <div class="row" style="gap:8px">
@@ -356,7 +370,7 @@ function render(isNew=false){
     $('#last').innerHTML='<div class="empty">עדיין לא הגרלת. בחר כמות ולחץ "הגרל".</div>';
     $('#lastActions').hidden=true;
   }
-  if(typeof G!=='undefined'&&!$('#game').hidden)gPaint();
+  if(typeof G!=='undefined'&&!$('#game').hidden){gLayout();gPaint();}
   const past=draws.slice(0,-1).reverse();
   $('#past').innerHTML=past.length?past.map(d=>`<h3>${new Date(d.t).toLocaleString('he-IL')} · ${d.win?'צירוף מנצח 🏆':d.game?'בניין הצירופים · '+d.ids.length+' צירופים':d.manual?'ידני':d.imported?'יובא מקובץ '+(d.label||''):d.ids.length+' צירופים'}</h3>`+d.ids.map((id,i)=>comboHTML(id,i)).join('')).join(''):'<div class="empty">אין הגרלות קודמות</div>';
 }
@@ -515,34 +529,69 @@ $('#winBtn').addEventListener('click',async()=>{
 });
 
 // ---- combo builder game: all 16,273,488 combos as a virtual canvas grid ----
-const G={cell:16,pad:1.5,cols:0,rows:0,sel:new Set(),flash:-1};
+const G={cell:16,pad:1.5,cols:0,rows:0,sel:new Set(),flash:-1,mode:'all'};
 const gwrap=$('#gwrap'),gspace=$('#gspace'),gcv=$('#gcanvas'),gctx=gcv.getContext('2d');
 const GCOL={free:'#CDE7D3',used:'#D9536A',won:'#E4A400',sel:'#3B6FE0'};
+let gSortedUsed=[];
+function gArr(){ // finite id list for the filtered modes; null for the virtual modes
+  if(G.mode==='used')return gSortedUsed;
+  if(G.mode==='won')return [...winnersSet].sort((a,b)=>a-b);
+  if(G.mode==='sel')return [...G.sel].sort((a,b)=>a-b);
+  return null;
+}
+let gArrCache=null;
+function gTotalItems(){return G.mode==='all'?TOTAL:G.mode==='free'?TOTAL-usedSet.size:gArrCache.length;}
+function freeIdAt(idx){ // the idx-th combo that is still in the pool
+  let id=idx;
+  for(const u of gSortedUsed){if(u<=id)id++;else break;}
+  return id;
+}
+function gIdAtIndex(idx){
+  if(idx<0||idx>=gTotalItems())return -1;
+  if(G.mode==='all')return idx;
+  if(G.mode==='free')return freeIdAt(idx);
+  return gArrCache[idx];
+}
 function gLayout(){
   const w=gwrap.clientWidth,h=gwrap.clientHeight;
   if(!w)return;
+  gSortedUsed=[...usedSet].sort((a,b)=>a-b);
+  gArrCache=gArr()||[];
+  const total=gTotalItems();
   const dpr=window.devicePixelRatio||1;
   // browsers cap scrollable height (~33.5M css px / dpr) — force enough columns to stay under it
   const maxH=Math.min(14e6,Math.floor(3e7/dpr));
-  G.cols=Math.max(Math.floor(w/G.cell),Math.ceil(TOTAL*G.cell/maxH));
-  G.rows=Math.ceil(TOTAL/G.cols);
+  G.cols=Math.max(Math.floor(w/G.cell),Math.ceil(total*G.cell/maxH));
+  G.rows=Math.max(1,Math.ceil(total/G.cols));
   gspace.style.height=(G.rows*G.cell)+'px';
   const cw=Math.max(w,G.cols*G.cell);
   gspace.style.width=cw+'px';
   gcv.width=Math.floor(cw*dpr);gcv.height=Math.floor(h*dpr);
   gcv.style.width=cw+'px';gcv.style.height=h+'px';
+  $('#gmodeinfo').textContent='מציג '+fmt(total)+' צירופים · כל ריבוע = צירוף';
 }
 function gPaint(){
   if($('#game').hidden||!G.cols)return;
   const st=gwrap.scrollTop,h=gwrap.clientHeight,dpr=window.devicePixelRatio||1;
   gcv.style.transform=`translateY(${st}px)`;
   gctx.setTransform(dpr,0,0,dpr,0,0);
-  gctx.clearRect(0,0,gcv.width,gcv.height);
+  gctx.clearRect(0,0,gcv.width/dpr,gcv.height/dpr);
+  const total=gTotalItems();
+  if(!total){
+    gctx.fillStyle='#5C6B7E';gctx.font='700 15px Heebo,sans-serif';gctx.textAlign='center';
+    gctx.fillText('אין צירופים להצגה בתצוגה הזו',gwrap.clientWidth/2,60);
+    return;
+  }
   const r0=Math.floor(st/G.cell),r1=Math.min(G.rows-1,Math.ceil((st+h)/G.cell));
   const s=G.cell-2*G.pad,round=!!gctx.roundRect;
+  const isFree=G.mode==='free';
+  let freeId=isFree?freeIdAt(r0*G.cols):0;
   for(let r=r0;r<=r1;r++)for(let c=0;c<G.cols;c++){
-    const id=r*G.cols+c;
-    if(id>=TOTAL)break;
+    const idx=r*G.cols+c;
+    if(idx>=total)break;
+    let id;
+    if(isFree){while(usedSet.has(freeId))freeId++;id=freeId;freeId++;}
+    else id=gIdAtIndex(idx);
     gctx.fillStyle=G.sel.has(id)?GCOL.sel:winnersSet.has(id)?GCOL.won:usedSet.has(id)?GCOL.used:GCOL.free;
     const x=c*G.cell+G.pad,y=r*G.cell-st+G.pad;
     if(round){gctx.beginPath();gctx.roundRect(x,y,s,s,3);gctx.fill();}
@@ -555,8 +604,7 @@ function gIdAt(e){
   const x=e.clientX-rect.left+gwrap.scrollLeft,y=e.clientY-rect.top+gwrap.scrollTop;
   const c=Math.floor(x/G.cell),r=Math.floor(y/G.cell);
   if(c<0||c>=G.cols||r<0)return -1;
-  const id=r*G.cols+c;
-  return id<TOTAL?id:-1;
+  return gIdAtIndex(r*G.cols+c);
 }
 gwrap.addEventListener('click',e=>{
   const id=gIdAt(e);
@@ -564,7 +612,9 @@ gwrap.addEventListener('click',e=>{
   if(winnersSet.has(id)){toast('הצירוף הזה כבר זכה 🏆');return;}
   if(usedSet.has(id)){toast('הצירוף הזה כבר הוצא מהמאגר');return;}
   G.sel.has(id)?G.sel.delete(id):G.sel.add(id);
-  gSel();gPaint();
+  gSel();
+  if(G.mode==='sel')gLayout();
+  gPaint();
 });
 gwrap.addEventListener('mousemove',e=>{
   const id=gIdAt(e);
@@ -593,9 +643,38 @@ $('#gjumpBtn').addEventListener('click',()=>{
   const n=parseInt($('#gjump').value);
   if(!(n>=1&&n<=TOTAL)){toast('הזן מספר בין 1 ל-16,273,488');return;}
   const id=n-1;
-  gwrap.scrollTop=Math.max(0,Math.floor(id/G.cols)*G.cell-gwrap.clientHeight/2);
+  let idx;
+  if(G.mode==='all')idx=id;
+  else if(G.mode==='free'){
+    if(usedSet.has(id)){toast('הצירוף הזה כבר הוצא — הוא לא בתצוגת "במאגר"');return;}
+    idx=id;for(const u of gSortedUsed){if(u<id)idx--;else break;}
+  }else{
+    idx=gArrCache.indexOf(id);
+    if(idx<0){toast('הצירוף לא נמצא בתצוגה הנוכחית');return;}
+  }
+  gwrap.scrollTop=Math.max(0,Math.floor(idx/G.cols)*G.cell-gwrap.clientHeight/2);
   G.flash=id;gPaint();
   setTimeout(()=>{G.flash=-1;gPaint();},2500);
+});
+document.querySelectorAll('#gseg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#gseg button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  G.mode=b.dataset.m;G.flash=-1;
+  gwrap.scrollTop=0;gwrap.scrollLeft=0;
+  gLayout();gPaint();
+}));
+function gFullUI(on){$('#gfull').textContent=on?'✕ צא ממסך מלא':'⛶ מסך מלא';}
+$('#gfull').addEventListener('click',async()=>{
+  const g=$('#game');
+  const on=!g.classList.contains('full');
+  g.classList.toggle('full',on);
+  gFullUI(on);
+  try{if(on)await g.requestFullscreen();else if(document.fullscreenElement)await document.exitFullscreen();}catch(e){}
+  gLayout();gPaint();
+});
+document.addEventListener('fullscreenchange',()=>{
+  if(!document.fullscreenElement){$('#game').classList.remove('full');gFullUI(false);}
+  gLayout();gPaint();
 });
 let gRaf=0;
 gwrap.addEventListener('scroll',()=>{if(!gRaf)gRaf=requestAnimationFrame(()=>{gRaf=0;gPaint();});});
@@ -604,7 +683,11 @@ $('#gameBtn').addEventListener('click',()=>{
   $('#game').hidden=false;document.body.style.overflow='hidden';
   gLayout();gPaint();
 });
-$('#closeGame').addEventListener('click',()=>{$('#game').hidden=true;document.body.style.overflow='';});
+$('#closeGame').addEventListener('click',()=>{
+  $('#game').hidden=true;document.body.style.overflow='';
+  $('#game').classList.remove('full');gFullUI(false);
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+});
 
 // ---- upload excel/csv with combos to mark ----
 let xlsxLib=null;
