@@ -150,7 +150,7 @@
   <details>
     <summary>העלה קובץ צירופים זוכים 🏆</summary>
     <div class="panel" style="margin-top:8px">
-      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">קובץ Excel‏ (xlsx) או CSV של צירופים שכבר זכו — יוצאו מהמאגר ויסומנו בירוק בבניין הצירופים.</p>
+      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">קובץ Excel‏ (xlsx) או CSV של צירופים שכבר זכו — עמודות A–F: ששת המספרים, עמודה G: המספר החזק. יוצאו מהמאגר ויסומנו בירוק בבניין הצירופים.</p>
       <input id="winFileIn" type="file" accept=".xlsx,.xls,.csv" style="width:100%">
       <button id="winFileBtn" class="draw" style="margin-top:10px;background:#17A34A">סמן כצירופים זוכים</button>
       <div id="winFileOut" class="checkOut"></div>
@@ -160,7 +160,7 @@
   <details>
     <summary>העלה קובץ אקסל עם צירופים לסימון</summary>
     <div class="panel" style="margin-top:8px">
-      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">קובץ Excel‏ (xlsx) או CSV. בכל שורה: 6 מספרים (1–37) ומספר חזק (1–7) — כמו בפורמט של lotto_30.</p>
+      <p style="margin:0 0 10px;font-size:14px;color:var(--muted)">קובץ Excel‏ (xlsx) או CSV. עמודות A–F: ששת המספרים (1–37), עמודה G: המספר החזק (1–7).</p>
       <input id="fileIn" type="file" accept=".xlsx,.xls,.csv" style="width:100%">
       <button id="uploadBtn" class="draw" style="margin-top:10px;background:var(--ink)">סמן את הצירופים מהקובץ</button>
       <div id="uploadOut" class="checkOut"></div>
@@ -768,16 +768,26 @@ async function readComboFile(file){ // -> {ids:[...ranked ids, may contain dups]
     const wb=X.read(await file.arrayBuffer());
     rows=X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true});
   }
+  const cellNums=cell=>{
+    if(typeof cell==='number')return [cell];
+    if(typeof cell==='string')return (cell.match(/\d+/g)||[]).map(Number);
+    return [];
+  };
   const res={ids:[],bad:0};
   for(const row of rows){
-    const nums=[];
-    for(const cell of row||[]){
-      if(typeof cell==='number') nums.push(cell);
-      else if(typeof cell==='string') (cell.match(/\d+/g)||[]).forEach(m=>nums.push(parseInt(m)));
+    if(!row||!row.length) continue;
+    let six=null,strong=null;
+    // primary format: columns A-F = the six numbers, column G = the strong number (extra columns ignored)
+    const first7=(row.slice(0,7)||[]).map(cellNums);
+    if(first7.length===7&&first7.every(a=>a.length===1)){
+      six=first7.slice(0,6).map(a=>a[0]);strong=first7[6][0];
+    }else{
+      // fallback: any row whose cells contain exactly 7 numbers in total (e.g. "8, 18, 21, 24, 27, 30" | 3)
+      const nums=(row||[]).flatMap(cellNums);
+      if(!nums.length) continue;            // header / empty row
+      if(nums.length!==7){res.bad++;continue;}
+      six=nums.slice(0,6);strong=nums[6];
     }
-    if(!nums.length) continue;              // header / empty row
-    if(nums.length!==7){res.bad++;continue;}
-    const six=nums.slice(0,6), strong=nums[6];
     if(six.some(v=>!(v>=1&&v<=37))||new Set(six).size!==6||!(strong>=1&&strong<=7)){res.bad++;continue;}
     res.ids.push(rank(six,strong));
   }
