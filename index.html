@@ -562,18 +562,21 @@ function freeIdAt(idx){ // the idx-th combo that is still in the pool
 // ---- shuffle: seeded Feistel permutation over [0,total) — random-looking, reversible, zero memory ----
 function makeShuf(total){
   const bits=Math.max(4,Math.ceil(Math.log2(total))),half=Math.ceil(bits/2);
-  return {k:[...crypto.getRandomValues(new Uint32Array(4))],total,half,mask:(1<<half)-1,domain:1<<(2*half)};
+  return {k:[...crypto.getRandomValues(new Uint32Array(6))],total,half,mask:(1<<half)-1,domain:1<<(2*half)};
 }
-function shufRound(s,r,i){
-  let f=Math.imul(r+s.k[i],0x9E3779B1)>>>0;
-  f^=f>>>15;
+function shufRound(s,r,i){ // murmur3-style finalizer: full avalanche, every output bit depends on every input bit
+  let f=(r+s.k[i])>>>0;
+  f=Math.imul(f^(f>>>16),0x85EBCA6B)>>>0;
+  f^=f>>>13;
+  f=Math.imul(f,0xC2B2AE35)>>>0;
+  f^=f>>>16;
   return f&s.mask;
 }
 function shufMap(s,idx){
   let v=idx;
   do{
     let l=v>>s.half,r=v&s.mask;
-    for(let i=0;i<4;i++){const t=r;r=(l^shufRound(s,r,i))&s.mask;l=t;}
+    for(let i=0;i<6;i++){const t=r;r=(l^shufRound(s,r,i))&s.mask;l=t;}
     v=(l<<s.half)|r;
   }while(v>=s.total);
   return v;
@@ -582,7 +585,7 @@ function shufInv(s,idx){
   let v=idx;
   do{
     let l=v>>s.half,r=v&s.mask;
-    for(let i=3;i>=0;i--){const t=l;l=(r^shufRound(s,l,i))&s.mask;r=t;}
+    for(let i=5;i>=0;i--){const t=l;l=(r^shufRound(s,l,i))&s.mask;r=t;}
     v=(l<<s.half)|r;
   }while(v>=s.total);
   return v;
