@@ -243,6 +243,7 @@
       <span><i style="background:#D9536A"></i>הוצא מהמאגר</span>
       <span><i style="background:#17A34A"></i>זכה 🏆</span>
       <span><i style="background:#3B6FE0"></i>נבחר</span>
+      <span><i style="background:#EFD9A0"></i>דומה לנבחר</span>
       <span style="margin-right:auto" id="gmodeinfo">סה״כ 16,273,488 ריבועים · כל ריבוע = צירוף</span>
     </div>
 
@@ -265,10 +266,7 @@
         <b>נבחרו: <span id="gselCount">0</span></b>
         <button id="gclear">נקה בחירה</button>
       </div>
-      <label style="display:flex;gap:7px;align-items:center;font-size:13px;color:var(--muted);margin-top:8px;cursor:pointer">
-        <input type="checkbox" id="gdiff" checked style="width:16px;height:16px;accent-color:var(--red)">
-        מנע בחירת צירוף שחולק 3 מספרים או יותר עם צירוף שכבר נבחר
-      </label>
+      <p style="margin:8px 0 0;font-size:13px;color:var(--muted)">ריבועים בצבע ענבר דומים לצירוף שבחרת (3+ מספרים משותפים) — אפשר לבחור גם אותם, זה רק סימון.</p>
       <div id="gselList"></div>
       <button id="gtake" class="draw" disabled>הוצא מהמאגר</button>
       <div id="gtaken"></div>
@@ -367,9 +365,9 @@ async function save(){
 // ---- UI ----
 const $=s=>document.querySelector(s);
 const fmt=n=>n.toLocaleString('he-IL');
-function comboHTML(id,i,isNew){
+function comboHTML(id,i,isNew,extra=''){
   const {nums,strong}=unrank(id);
-  return `<div class="combo${isNew?' new':''}"><span class="idx">${i+1}</span>${nums.map(n=>`<span class="n">${n}</span>`).join('')}<span class="n strong" title="מספר חזק">${strong}</span></div>`;
+  return `<div class="combo${isNew?' new':''}"><span class="idx">${i+1}</span>${nums.map(n=>`<span class="n">${n}</span>`).join('')}<span class="n strong" title="מספר חזק">${strong}</span>${extra}</div>`;
 }
 function comboText(id){const {nums,strong}=unrank(id);return nums.join(' ')+' | חזק '+strong;}
 function drawText(d){return new Date(d.t).toLocaleString('he-IL')+'\n'+d.ids.map(comboText).join('\n');}
@@ -635,6 +633,7 @@ function gPaint(){
   const r0=Math.floor(st/G.cell),r1=Math.min(G.rows-1,Math.ceil((st+h)/G.cell));
   const s=G.cell-2*G.pad,round=!!gctx.roundRect;
   const fastFree=G.mode==='free'&&!G.shuf;
+  const selMasks=[...G.sel].map(comboMask);
   let freeId=fastFree?freeIdAt(r0*G.cols):0;
   for(let r=r0;r<=r1;r++)for(let c=0;c<G.cols;c++){
     const idx=r*G.cols+c;
@@ -642,13 +641,26 @@ function gPaint(){
     let id;
     if(fastFree){while(usedSet.has(freeId))freeId++;id=freeId;freeId++;}
     else id=gIdAtIndex(idx);
-    gctx.fillStyle=G.sel.has(id)?GCOL.sel:winnersSet.has(id)?GCOL.won:usedSet.has(id)?GCOL.used:GCOL.free;
+    let col=G.sel.has(id)?GCOL.sel:winnersSet.has(id)?GCOL.won:usedSet.has(id)?GCOL.used:GCOL.free;
+    if(col===GCOL.free&&selMasks.length){
+      const m=comboMask(id);
+      for(const sm of selMasks)if(overlapMask(m,sm)>=3){col='#EFD9A0';break;}
+    }
+    gctx.fillStyle=col;
     const x=c*G.cell+G.pad,y=r*G.cell-st+G.pad;
     if(round){gctx.beginPath();gctx.roundRect(x,y,s,s,3);gctx.fill();}
     else gctx.fillRect(x,y,s,s);
     if(id===G.flash){gctx.strokeStyle='#1B2A41';gctx.lineWidth=2.5;gctx.stroke();}
   }
 }
+function comboMask(id){ // numbers 1-37 as bits across two 32-bit ints
+  const {nums}=unrank(id);
+  let lo=0,hi=0;
+  for(const n of nums){if(n<32)lo|=1<<n;else hi|=1<<(n-32);}
+  return [lo,hi];
+}
+function pop32(x){x|=0;x=x-((x>>1)&0x55555555);x=(x&0x33333333)+((x>>2)&0x33333333);return (((x+(x>>4))&0x0F0F0F0F)*0x01010101)>>24;}
+function overlapMask(a,b){return pop32(a[0]&b[0])+pop32(a[1]&b[1]);}
 function gIdAt(e){
   const rect=gwrap.getBoundingClientRect();
   const x=e.clientX-rect.left+gwrap.scrollLeft,y=e.clientY-rect.top+gwrap.scrollTop;
@@ -661,14 +673,6 @@ gwrap.addEventListener('click',e=>{
   if(id<0)return;
   if(winnersSet.has(id)){toast('הצירוף הזה כבר זכה 🏆');return;}
   if(usedSet.has(id)){toast('הצירוף הזה כבר הוצא מהמאגר');return;}
-  if(!G.sel.has(id)&&$('#gdiff').checked){
-    const {nums}=unrank(id);
-    for(const sid of G.sel){
-      const sn=unrank(sid).nums;
-      const ov=nums.filter(x=>sn.includes(x)).length;
-      if(ov>=3){toast(`נחסם — ${ov} מספרים משותפים עם ${sn.join(' ')}`);return;}
-    }
-  }
   G.sel.has(id)?G.sel.delete(id):G.sel.add(id);
   gSel();
   if(G.mode==='sel')gLayout();
@@ -681,7 +685,13 @@ gwrap.addEventListener('mousemove',e=>{
 function gSel(){
   const ids=[...G.sel].sort((a,b)=>a-b);
   $('#gselCount').textContent=fmt(ids.length);
-  $('#gselList').innerHTML=ids.slice(0,50).map((id,i)=>comboHTML(id,i)).join('')+(ids.length>50?`<div class="empty">ועוד ${fmt(ids.length-50)} צירופים נבחרים…</div>`:'');
+  const masks=ids.map(comboMask);
+  const sim=ids.map((_,i)=>masks.some((m,j)=>j!==i&&overlapMask(m,masks[i])>=3));
+  const simCount=sim.filter(Boolean).length;
+  $('#gselList').innerHTML=
+    (simCount?`<div style="font-size:13px;font-weight:700;color:#8A6400;margin:6px 0">⚠️ ${simCount} מהצירופים שנבחרו דומים זה לזה (3+ מספרים משותפים)</div>`:'')+
+    ids.slice(0,50).map((id,i)=>comboHTML(id,i,false,sim[i]?'<span class="tag" style="color:#8A6400">⚠️ דומה</span>':'')).join('')+
+    (ids.length>50?`<div class="empty">ועוד ${fmt(ids.length-50)} צירופים נבחרים…</div>`:'');
   $('#gtake').disabled=!ids.length;
 }
 $('#gtake').addEventListener('click',async()=>{
